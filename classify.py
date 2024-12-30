@@ -2,6 +2,9 @@
 
 import tensorflow as tf
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.optimizers import RMSprop
+
+import matplotlib.pyplot as plt
 
 import os
 
@@ -34,14 +37,17 @@ telecaster_test_path = f'{test_path}/telecaster'
 def getModel(inputShape):
     model = tf.keras.models.Sequential([
 
-        tf.keras.layers.Conv2D(64, (3,3), activation='relu', input_shape=(inputShape,inputShape,3)), # 98
-        tf.keras.layers.MaxPooling2D(2,2), # 49
+        tf.keras.layers.Conv2D(32, (3,3), activation='relu', input_shape=(inputShape,inputShape,3)),
+        tf.keras.layers.MaxPooling2D(2,2),
 
-        tf.keras.layers.Conv2D(64, (3,3), activation='relu'), # 47
-        tf.keras.layers.MaxPooling2D(2,2), # 23 
+        tf.keras.layers.Conv2D(64, (3,3), activation='relu'),
+        tf.keras.layers.MaxPooling2D(2,2),
 
-        tf.keras.layers.Conv2D(128, (3,3), activation='relu'), # 21
-        tf.keras.layers.MaxPooling2D(2,2), # 10 
+        tf.keras.layers.Conv2D(128, (3,3), activation='relu'),
+        tf.keras.layers.MaxPooling2D(2,2),
+
+        # tf.keras.layers.Conv2D(128, (3,3), activation='relu'),
+        # tf.keras.layers.MaxPooling2D(2,2),
 
         tf.keras.layers.Flatten(),
         tf.keras.layers.Dense(512, activation=tf.nn.relu),
@@ -53,27 +59,69 @@ def getModel(inputShape):
 inputShape = 150
 train_datagen = ImageDataGenerator(rescale=1/255,
     horizontal_flip=True,
-    height_shift_range=0.1,
-    width_shift_range=0.1,
-    brightness_range=(0.5,1.5),
-    zoom_range = [1, 1.5])
+    rotation_range=40,
+    width_shift_range=0.2,
+    height_shift_range=0.2,
+    shear_range=0.2,
+    zoom_range=0.2,
+    fill_mode='nearest')
+
+test_datagen  = ImageDataGenerator( rescale = 1.0/255. )
 
 train_generator = train_datagen.flow_from_directory(
         train_path,
         target_size=(inputShape, inputShape),  # All images will be resized to (inputShape x inputShape)
-        batch_size=128,
-        # Since we use sparse_categorical_crossentropy loss, we need binary labels
+        batch_size=5,
+        # Since we use categorical_crossentropy loss, we need binary labels
         class_mode='categorical')
+
+test_generator =  test_datagen.flow_from_directory(test_path,
+                                                         batch_size=5,
+                                                         class_mode  = 'categorical',
+                                                         target_size = (inputShape, inputShape))
 
 model = getModel(inputShape)
 
 # Print the model summary
-# model.summary()
+model.summary()
 
-model.compile(optimizer = 'adam', loss = 'categorical_crossentropy') # or sparse_categorical_crossentropy ?
+model.compile(optimizer = 'adam',  # optimizer=RMSprop(learning_rate=0.001)
+              loss = 'categorical_crossentropy',
+              metrics = ['accuracy'])
 
 history = model.fit(
       train_generator,
-      steps_per_epoch=8,  
-      epochs=15,
+      steps_per_epoch=4,  
+      epochs=150,
+      validation_data=test_generator,
       verbose=1)
+
+
+
+#-----------------------------------------------------------
+# Retrieve a list of list results on training and test data
+# sets for each training epoch
+#-----------------------------------------------------------
+acc      = history.history['accuracy']
+val_acc  = history.history['val_accuracy']
+loss     = history.history['loss']
+val_loss = history.history['val_loss']
+
+epochs   = range(len(acc)) # Get number of epochs
+
+#------------------------------------------------
+# Plot training and validation accuracy per epoch
+#------------------------------------------------
+plt.plot  (epochs, acc)
+plt.plot  (epochs, val_acc)
+plt.title ('Training and validation accuracy')
+plt.figure()
+
+#------------------------------------------------
+# Plot training and validation loss per epoch
+#------------------------------------------------
+plt.plot  ( epochs,     loss )
+plt.plot  ( epochs, val_loss )
+plt.title ('Training and validation loss'   )
+
+plt.show()
